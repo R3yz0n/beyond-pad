@@ -19,6 +19,15 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4"
+    "tailwindcss": "^4",
+    "@safe-global/account-abstraction-kit-poc": "^3.0.0",
+    "@safe-global/auth-kit": "^3.0.0",
+    "@safe-global/onramp-kit": "^3.0.0",
+    "@safe-global/protocol-kit": "^3.0.0",
+    "@safe-global/relay-kit": "^3.0.0",
+    "@safe-global/safe-react-components": "^3.0.0",
+    "@stripe/crypto": "^0.0.4",
+    "@stripe/stripe-js": "^1.52.1",
+    "@web3auth/safeauth-embed": "^0.0.0"
   }
 }
