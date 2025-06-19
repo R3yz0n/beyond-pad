@@ -2,10 +2,10 @@
 import { useState, useCallback } from "react";
 import { ethers, BrowserProvider, parseUnits } from "ethers";
 import AccountAbstraction from "@safe-global/account-abstraction-kit-poc";
-import { EthersAdapter } from "@safe-global/protocol-kit";
+// import { EthersAdapter } from "@safe-global/protocol-kit";
 import { MetaTransactionData, MetaTransactionOptions } from "@safe-global/safe-core-sdk-types";
 import { GelatoRelayPack } from "@safe-global/relay-kit";
-import { RelayResponse as GelatoRelayResponse } from "@gelatonetwork/relay-sdk";
+// import { RelayResponse as GelatoRelayResponse } from "@gelatonetwork/relay-sdk";
 
 const BASE_SEPOLIA_CHAIN_ID = "0x14a34";
 
