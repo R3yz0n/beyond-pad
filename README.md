@@ -104,7 +104,7 @@ NEXT_PUBLIC_PINATA_JWT=your_pinata_jwt_token
 yarn dev
 ```
 
-## 🔧 Smart Contract
+## 🔧 Smart Contract (Note Registry Contract Address 0x0ec7441eF05ABEaF4089f0b01982D7cfdFefEFbA)
 
 ### NoteRegistry.sol
 

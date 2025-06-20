@@ -405,6 +405,11 @@ const Editor: React.FC<EditorProps> = ({
             },
           };
 
+          // Type guard to ensure relayTransaction exists
+          if (!relayTransaction) {
+            throw new Error("Relay transaction function not available");
+          }
+
           await relayTransaction(collaboratorTxData);
           console.log("Collaborator added successfully");
           toast.dismiss();

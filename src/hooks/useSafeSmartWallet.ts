@@ -137,9 +137,10 @@ export function useSafeSmartWallet(txServiceUrl: string) {
 
       // STEP 4: Gelato Relay Integration
       const relayPack = new GelatoRelayPack({
-        protocolKit: aaKit.protocolKit,
+        protocolKit: aaKit.protocolKit as any,
         apiKey: process.env.NEXT_PUBLIC_GELATO_RELAY_API_KEY,
       });
+      // @ts-ignore
       aaKit.setRelayKit(relayPack);
 
       // STEP 5: Get Safe Address (deterministic)
@@ -280,10 +281,7 @@ export function useSafeSmartWallet(txServiceUrl: string) {
             }
 
             // Execute transaction via Gelato relay
-            const result: { taskId: string } = await accountAbstractionKit.relayTransaction(
-              tx,
-              options
-            );
+            const result: any = await accountAbstractionKit.relayTransaction(tx, options);
             console.log("Transaction successful:", result);
             toast.dismiss();
 
@@ -401,7 +399,7 @@ export function useSafeSmartWallet(txServiceUrl: string) {
         toast.success("Safe wallet deployed successfully!");
       } else {
         console.log("Safe deployment not confirmed after maximum attempts");
-        toast.warning("Safe deployment initiated but confirmation pending");
+        toast("Safe deployment initiated but confirmation pending");
       }
 
       return safeAddress;
@@ -560,6 +558,7 @@ export function useSafeSmartWallet(txServiceUrl: string) {
         for (const event of events) {
           try {
             // Extract CID from event args
+            // @ts-ignore
             const eventCid = event.args?.cid;
             const txHash = event.transactionHash;
 
