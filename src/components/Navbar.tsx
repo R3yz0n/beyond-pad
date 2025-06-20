@@ -27,8 +27,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           Beyond Pad
         </h1>
         <div className="hidden md:flex items-center space-x-6 text-sm text-gray-300 ml-8">
-          <a href="#" className="hover:text-white transition-colors">
-            Dashboard
+          <a
+            href="https://github.com/R3yz0n/beyond-pad"
+            target="_blank"
+            className="hover:text-white transition-colors"
+          >
+            View Code
           </a>
           <a href="#" className="hover:text-white transition-colors">
             Editor
