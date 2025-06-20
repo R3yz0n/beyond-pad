@@ -6,31 +6,59 @@ import { ethers } from "ethers";
 import axios from "axios";
 import toast from "react-hot-toast";
 
+/**
+ * ENCRYPTED NOTE EDITOR COMPONENT
+ *
+ * This component provides a comprehensive encrypted note-taking system with:
+ * - End-to-end encryption using AES-256
+ * - IPFS storage for decentralized content
+ * - Blockchain registration for ownership and access control
+ * - Collaboration features with secure key sharing
+ * - NFT-gated access control
+ *
+ * SECURITY MODEL:
+ * 1. Content is encrypted with random AES key before IPFS upload
+ * 2. AES key is encrypted with wallet-derived keys for each user
+ * 3. Encrypted keys are stored on-chain for access control
+ * 4. Only wallet holders can decrypt their respective keys
+ *
+ * ARCHITECTURE:
+ * Content -> AES Encrypt -> IPFS
+ * AES Key -> Wallet Encrypt -> Blockchain
+ * Access Control -> Smart Contract
+ */
+
 // Import MDEditor dynamically to avoid SSR issues
 const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false });
+
+// ============================================
+// TYPE DEFINITIONS
+// ============================================
 
 interface EditorProps {
   isAuthenticated: boolean;
   isDeployed: boolean;
   relayTransaction?: (txData: any) => Promise<any>;
   ownerAddress?: string;
-  safeAddress?: string; // Add Safe address
+  safeAddress?: string;
   web3Provider?: any;
   getUserNotes?: (
     userAddress: string
   ) => Promise<{ cids: string[]; nftAddrs: string[]; encKeys: string[] }>;
 }
 
-// Update the saved notes interface to include collaborator info
+/**
+ * Represents a saved note with metadata
+ */
 interface SavedNote {
-  cid: string;
-  title: string;
-  timestamp: number;
-  owner: string;
-  collaborator?: string;
-  nftGate?: string;
-  txHash?: string;
-  isShared: boolean;
+  cid: string; // IPFS content identifier
+  title: string; // First line of note content
+  timestamp: number; // Unix timestamp
+  owner: string; // Owner's address
+  collaborator?: string; // Optional collaborator address
+  nftGate?: string; // Optional NFT contract for gating
+  txHash?: string; // Blockchain transaction hash
+  isShared: boolean; // Whether note has collaborators
 }
 
 const Editor: React.FC<EditorProps> = ({
@@ -38,24 +66,34 @@ const Editor: React.FC<EditorProps> = ({
   isDeployed,
   relayTransaction,
   ownerAddress,
-  safeAddress, // Add this
+  safeAddress,
   web3Provider,
   getUserNotes,
 }) => {
+  // ============================================
+  // STATE MANAGEMENT
+  // ============================================
+
   const [note, setNote] = useState<string>("");
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [savedNotes, setSavedNotes] = useState<SavedNote[]>([]);
 
-  // New state for collaboration
+  // Collaboration state
   const [collaboratorAddress, setCollaboratorAddress] = useState<string>("");
   const [nftGateAddress, setNftGateAddress] = useState<string>("");
   const [showShareOptions, setShowShareOptions] = useState<boolean>(false);
 
-  // State for loading notes from blockchain
+  // Blockchain loading state
   const [isLoadingNotes, setIsLoadingNotes] = useState<boolean>(false);
   const [loadedFromChain, setLoadedFromChain] = useState<boolean>(false);
 
-  // Helper function to validate Ethereum addresses
+  // ============================================
+  // UTILITY FUNCTIONS
+  // ============================================
+
+  /**
+   * Validates Ethereum addresses
+   */
   const isValidAddress = (address: string): boolean => {
     try {
       ethers.getAddress(address);
@@ -65,7 +103,27 @@ const Editor: React.FC<EditorProps> = ({
     }
   };
 
-  // Generate wallet-derived key for encryption/decryption
+  // ============================================
+  // CRYPTOGRAPHIC FUNCTIONS
+  // ============================================
+
+  /**
+   * Generates a deterministic wallet-derived key for encryption/decryption
+   *
+   * PROCESS:
+   * 1. Create deterministic message using userAddress and CID
+   * 2. Sign message with user's wallet (creates unique signature)
+   * 3. Hash signature to create encryption key
+   *
+   * This ensures:
+   * - Same user + same note = same key (deterministic)
+   * - Different users = different keys (secure)
+   * - Only wallet owner can generate their key (authenticated)
+   *
+   * @param userAddress - User's wallet address
+   * @param cid - IPFS content identifier
+   * @returns Promise<string> - Derived encryption key
+   */
   const generateWalletKey = async (userAddress: string, cid: string): Promise<string> => {
     if (!window.ethereum) {
       throw new Error("No wallet connected");
@@ -86,23 +144,45 @@ const Editor: React.FC<EditorProps> = ({
     }
   };
 
-  // Generate random content key for note encryption
+  /**
+   * Generates a random content key for note encryption
+   * @returns string - Random 256-bit key in hex format
+   */
   const generateContentKey = (): string => {
     return CryptoJS.lib.WordArray.random(256 / 8).toString();
   };
 
-  // Encrypt content with AES
+  /**
+   * Encrypts content using AES-256 encryption
+   * @param content - Plain text content to encrypt
+   * @param key - Encryption key
+   * @returns string - Encrypted content
+   */
   const encryptContent = (content: string, key: string): string => {
     return CryptoJS.AES.encrypt(content, key).toString();
   };
 
-  // Decrypt content with AES
+  /**
+   * Decrypts content using AES-256 decryption
+   * @param encryptedContent - Encrypted content to decrypt
+   * @param key - Decryption key
+   * @returns string - Plain text content
+   */
   const decryptContent = (encryptedContent: string, key: string): string => {
     const bytes = CryptoJS.AES.decrypt(encryptedContent, key);
     return bytes.toString(CryptoJS.enc.Utf8);
   };
 
-  // Upload encrypted note data to IPFS using axios
+  // ============================================
+  // IPFS FUNCTIONS
+  // ============================================
+
+  /**
+   * Uploads encrypted note data to IPFS via Pinata
+   *
+   * @param noteData - Encrypted note object to upload
+   * @returns Promise<string> - IPFS content identifier (CID)
+   */
   const uploadToIPFS = async (noteData: any): Promise<string> => {
     try {
       const response = await axios.post(
@@ -114,7 +194,7 @@ const Editor: React.FC<EditorProps> = ({
             keyvalues: {
               type: "collaborative-note",
               owner: ownerAddress || "unknown",
-              hasCollaborator: noteData.collaborator ? "true" : "false", // Convert boolean to string
+              hasCollaborator: noteData.collaborator ? "true" : "false",
             },
           },
         },
@@ -136,7 +216,12 @@ const Editor: React.FC<EditorProps> = ({
     }
   };
 
-  // Fetch note data from IPFS using axios
+  /**
+   * Fetches note data from IPFS
+   *
+   * @param cid - IPFS content identifier
+   * @returns Promise<any> - Encrypted note data
+   */
   const fetchFromIPFS = async (cid: string): Promise<any> => {
     try {
       const response = await axios.get(`https://ipfs.io/ipfs/${cid}`, {
@@ -155,8 +240,31 @@ const Editor: React.FC<EditorProps> = ({
     }
   };
 
-  // Main function to save note with collaboration support
+  // ============================================
+  // MAIN SAVE FUNCTION
+  // ============================================
+
+  /**
+   * Main function to save note with collaboration support
+   *
+   * ENCRYPTION FLOW:
+   * 1. Serialize note content with metadata
+   * 2. Generate random AES content key
+   * 3. Encrypt note content with AES key
+   * 4. Upload encrypted content to IPFS → get CID
+   * 5. Generate wallet-derived key for owner
+   * 6. Encrypt AES key with owner's wallet key
+   * 7. Store encrypted key on blockchain via Safe transaction
+   * 8. If collaborator specified, repeat steps 5-7 for collaborator
+   *
+   * SECURITY PROPERTIES:
+   * - Content never stored unencrypted
+   * - AES keys never transmitted in plaintext
+   * - Only wallet owners can decrypt their keys
+   * - Each user has different encrypted key for same content
+   */
   const saveNoteToIPFS = async () => {
+    // Input validation
     if (!note.trim()) {
       toast.error("Please enter some content before saving");
       return;
@@ -167,7 +275,7 @@ const Editor: React.FC<EditorProps> = ({
       return;
     }
 
-    // Validate addresses if provided
+    // Address validation
     if (collaboratorAddress.trim() && !isValidAddress(collaboratorAddress)) {
       toast.error("Invalid collaborator address");
       return;
@@ -180,9 +288,11 @@ const Editor: React.FC<EditorProps> = ({
 
     setIsSaving(true);
     try {
-      // STEP 2: Save (Owner Only)
+      // ============================================
+      // STEP 1: CONTENT PREPARATION
+      // ============================================
 
-      // 1. Serialize note
+      // Serialize note with metadata
       const serializedNote = JSON.stringify({
         content: note,
         timestamp: new Date().toISOString(),
@@ -190,21 +300,27 @@ const Editor: React.FC<EditorProps> = ({
       });
       console.log("Serialized note");
 
-      // 2. Generate random content key for AES-GCM encryption
+      // ============================================
+      // STEP 2: CONTENT ENCRYPTION
+      // ============================================
+
+      // Generate random AES key for this note
       const contentKey = generateContentKey();
 
-      // 3. AES-GCM encrypt the serialized note
+      // Encrypt the note content
       const encryptedContent = encryptContent(serializedNote, contentKey);
-      console.log("AES-GCM encrypted note content");
+      console.log("AES encrypted note content");
 
-      // 4. Pin ciphertext to IPFS
+      // ============================================
+      // STEP 3: IPFS STORAGE
+      // ============================================
+
       toast.loading("Uploading encrypted note to IPFS...");
       const cipherData = {
         encryptedContent,
         owner: ownerAddress.toLowerCase(),
         timestamp: new Date().toISOString(),
         version: "1.0",
-        // Only include NFT gate in IPFS data, no collaborator yet
         ...(nftGateAddress.trim() && { nftGate: nftGateAddress.toLowerCase() }),
       };
 
@@ -213,11 +329,19 @@ const Editor: React.FC<EditorProps> = ({
       toast.dismiss();
       toast.success("Note uploaded to IPFS successfully!");
 
-      // 5. Generate owner's encrypted key using wallet signature
+      // ============================================
+      // STEP 4: OWNER KEY ENCRYPTION
+      // ============================================
+
+      // Generate owner's wallet-derived key
       const ownerWalletKey = await generateWalletKey(ownerAddress, cid);
+      // Encrypt content key with owner's wallet key
       const encryptedKeyForOwner = encryptContent(contentKey, ownerWalletKey);
 
-      // 6. Gasless addNote(cid, nftAddr, encKeyOwner) - OWNER ONLY
+      // ============================================
+      // STEP 5: BLOCKCHAIN REGISTRATION
+      // ============================================
+
       let txHash: string | undefined;
       if (relayTransaction && isDeployed) {
         const txData = {
@@ -233,8 +357,8 @@ const Editor: React.FC<EditorProps> = ({
         };
 
         const txResult = await relayTransaction(txData);
-        
-        // Store the transaction hash properly
+
+        // Store transaction hash for tracking
         if (txResult.taskId) {
           txHash = `gelato-${txResult.taskId}`;
           console.log("Storing Gelato Task ID:", txResult.taskId);
@@ -245,25 +369,25 @@ const Editor: React.FC<EditorProps> = ({
           txHash = txResult.transactionHash;
           console.log("Storing transaction hash (alt):", txResult.transactionHash);
         }
-        
+
         console.log("Note registered on-chain with hash:", txHash);
       }
 
-      // STEP 3: Share (Separate Transaction) - SECURE VERSION
+      // ============================================
+      // STEP 6: COLLABORATOR SHARING (OPTIONAL)
+      // ============================================
+
       if (collaboratorAddress.trim()) {
         try {
           toast.loading("Adding collaborator...");
 
-          // IMPORTANT: Never pass raw contentKey to collaboration functions
-          // Instead, encrypt the contentKey specifically for the collaborator
-
-          // 1. Generate collaborator's wallet-derived key
+          // Generate collaborator's wallet-derived key
           const collaboratorWalletKey = await generateWalletKey(collaboratorAddress, cid);
 
-          // 2. Encrypt the SAME contentKey with collaborator's wallet key
+          // Encrypt the SAME content key with collaborator's wallet key
           const encryptedKeyForCollaborator = encryptContent(contentKey, collaboratorWalletKey);
 
-          // 3. Gasless addCollaborator(noteId, collab, encKeyCollab)
+          // Add collaborator via blockchain transaction
           const collaboratorTxData = {
             to: process.env.NEXT_PUBLIC_NOTE_REGISTRY_ADDRESS,
             data: {
@@ -271,7 +395,7 @@ const Editor: React.FC<EditorProps> = ({
               params: {
                 noteId: cid,
                 collaborator: collaboratorAddress.toLowerCase(),
-                encKeyCollaborator: encryptedKeyForCollaborator, // This is encrypted!
+                encKeyCollaborator: encryptedKeyForCollaborator,
               },
             },
           };
@@ -288,18 +412,17 @@ const Editor: React.FC<EditorProps> = ({
         }
       }
 
-      // Clear the contentKey from memory immediately after use
-      // (Though JS garbage collection will handle this, it's good practice)
-      // contentKey = null; // Can't do this with const, but it will be garbage collected
+      // ============================================
+      // STEP 7: UI UPDATE
+      // ============================================
 
-      // Update UI and show success
       toast.success(
         `Note saved successfully! CID: ${cid.substring(0, 8)}...${
           collaboratorAddress ? ` | Shared with collaborator` : ""
         }`
       );
 
-      // 7. Update local state and localStorage
+      // Update local state with new note
       const newSavedNote: SavedNote = {
         cid,
         title: note.split("\n")[0].substring(0, 50) || "Untitled Note",
@@ -307,13 +430,13 @@ const Editor: React.FC<EditorProps> = ({
         owner: ownerAddress.toLowerCase(),
         collaborator: collaboratorAddress.trim() ? collaboratorAddress.toLowerCase() : undefined,
         nftGate: nftGateAddress.trim() ? nftGateAddress.toLowerCase() : undefined,
-        txHash, // This will be preserved in localStorage
+        txHash,
         isShared: !!collaboratorAddress.trim(),
       };
 
       setSavedNotes((prev) => [newSavedNote, ...prev]);
 
-      // 8. Reset form
+      // Reset form
       setCollaboratorAddress("");
       setNftGateAddress("");
       setShowShareOptions(false);
@@ -328,7 +451,26 @@ const Editor: React.FC<EditorProps> = ({
     }
   };
 
-  // Load notes from blockchain when user connects
+  // ============================================
+  // BLOCKCHAIN LOADING FUNCTION
+  // ============================================
+
+  /**
+   * Loads and decrypts notes from blockchain
+   *
+   * DECRYPTION FLOW:
+   * 1. Query contract for user's notes (using Safe address)
+   * 2. For each note: fetch encrypted content from IPFS
+   * 3. Generate wallet-derived key for current user
+   * 4. Decrypt the encrypted content key from blockchain
+   * 5. Use decrypted content key to decrypt note content
+   * 6. Parse and display note
+   *
+   * SECURITY NOTES:
+   * - Only works if user's wallet can generate the correct key
+   * - Wallet signature required for each note decryption
+   * - Invalid keys result in decryption failure (access denied)
+   */
   const loadNotesFromBlockchain = useCallback(async () => {
     if (!ownerAddress || !safeAddress || !getUserNotes || !web3Provider) {
       if (!getUserNotes) {
@@ -351,7 +493,7 @@ const Editor: React.FC<EditorProps> = ({
     try {
       toast.loading("Loading your notes from blockchain...");
 
-      // Query contract for user's notes using Safe address
+      // Query contract for user's notes
       console.log(`Loading notes for Safe address: ${safeAddress}`);
       const { cids, nftAddrs, encKeys } = await getUserNotes(safeAddress);
 
@@ -375,10 +517,10 @@ const Editor: React.FC<EditorProps> = ({
 
           console.log(`Processing note ${i + 1}/${cids.length}: ${cid}`);
 
-          // Fetch encrypted note data from IPFS
+          // Fetch encrypted content from IPFS
           const ipfsData = await fetchFromIPFS(cid);
 
-          // Decrypt the encryption key using wallet signature
+          // Decrypt the content key
           const walletKey = await generateWalletKey(ownerAddress, cid);
           const decryptedContentKey = decryptContent(encryptedKey, walletKey);
 
@@ -386,8 +528,8 @@ const Editor: React.FC<EditorProps> = ({
           const decryptedNote = decryptContent(ipfsData.encryptedContent, decryptedContentKey);
           const noteData = JSON.parse(decryptedNote);
 
-          // Check if we already have this note in local state with txHash
-          const existingNote = savedNotes.find(note => note.cid === cid);
+          // Check for existing transaction hash in local storage
+          const existingNote = savedNotes.find((note) => note.cid === cid);
           const txHash = existingNote?.txHash;
 
           // Create saved note object
@@ -397,30 +539,31 @@ const Editor: React.FC<EditorProps> = ({
             timestamp: new Date(noteData.timestamp).getTime(),
             owner: ownerAddress.toLowerCase(),
             nftGate: nftAddr !== ethers.ZeroAddress ? nftAddr : undefined,
-            txHash: txHash, // Preserve existing txHash if available
-            isShared: false, // TODO: Check if note has collaborators
+            txHash: txHash,
+            isShared: false, // TODO: Check collaborators
           };
 
           loadedNotes.push(savedNote);
-          console.log(`Successfully loaded note: ${savedNote.title}${txHash ? ` (with tx: ${txHash})` : ""}`);
+          console.log(
+            `Successfully loaded note: ${savedNote.title}${txHash ? ` (with tx: ${txHash})` : ""}`
+          );
         } catch (noteError: any) {
           console.error(`Failed to load note ${i + 1}:`, noteError);
           toast.error(`Failed to decrypt note ${i + 1}: ${noteError.message}`);
         }
       }
 
-      // Update state with loaded notes, preserving transaction hashes
+      // Update state with loaded notes
       setSavedNotes((prev) => {
         const existingCids = prev.map((note) => note.cid);
         const newNotes = loadedNotes.filter((note) => !existingCids.includes(note.cid));
-        
-        // For existing notes, merge the txHash from local state
-        const mergedNotes = loadedNotes.map(loadedNote => {
-          const existingNote = prev.find(note => note.cid === loadedNote.cid);
+
+        // Merge transaction hashes from local state
+        const mergedNotes = loadedNotes.map((loadedNote) => {
+          const existingNote = prev.find((note) => note.cid === loadedNote.cid);
           return existingNote ? { ...loadedNote, txHash: existingNote.txHash } : loadedNote;
         });
-        
-        // Combine unique loaded notes with existing ones
+
         const uniqueLoadedNotes = mergedNotes.filter((note) => !existingCids.includes(note.cid));
         return [...uniqueLoadedNotes, ...prev];
       });
@@ -437,7 +580,11 @@ const Editor: React.FC<EditorProps> = ({
     }
   }, [ownerAddress, safeAddress, getUserNotes, web3Provider, loadedFromChain, savedNotes]);
 
-  // Auto-load notes when user connects - with better dependency management
+  // ============================================
+  // LIFECYCLE EFFECTS
+  // ============================================
+
+  // Auto-load notes when user connects
   React.useEffect(() => {
     if (
       isAuthenticated &&
@@ -449,30 +596,30 @@ const Editor: React.FC<EditorProps> = ({
     ) {
       loadNotesFromBlockchain();
     }
-  }, [isAuthenticated, ownerAddress, safeAddress, getUserNotes, loadedFromChain]); // Add safeAddress
+  }, [isAuthenticated, ownerAddress, safeAddress, getUserNotes, loadedFromChain]);
 
-  // Load saved notes from localStorage on component mount
-  React.useEffect(() => {
-    try {
-      const savedNotesFromStorage = localStorage.getItem('beyondpad-notes');
-      if (savedNotesFromStorage) {
-        const parsedNotes = JSON.parse(savedNotesFromStorage);
-        setSavedNotes(parsedNotes);
-        console.log('Loaded notes from localStorage:', parsedNotes.length);
-      }
-    } catch (error) {
-      console.error('Failed to load notes from localStorage:', error);
-    }
-  }, []);
+  // // Load notes from localStorage on mount
+  // React.useEffect(() => {
+  //   try {
+  //     const savedNotesFromStorage = localStorage.getItem("beyondpad-notes");
+  //     if (savedNotesFromStorage) {
+  //       const parsedNotes = JSON.parse(savedNotesFromStorage);
+  //       setSavedNotes(parsedNotes);
+  //       console.log("Loaded notes from localStorage:", parsedNotes.length);
+  //     }
+  //   } catch (error) {
+  //     console.error("Failed to load notes from localStorage:", error);
+  //   }
+  // }, []);
 
-  // Save notes to localStorage whenever savedNotes changes
-  React.useEffect(() => {
-    try {
-      localStorage.setItem('beyondpad-notes', JSON.stringify(savedNotes));
-    } catch (error) {
-      console.error('Failed to save notes to localStorage:', error);
-    }
-  }, [savedNotes]);
+  // // Save notes to localStorage whenever they change
+  // React.useEffect(() => {
+  //   try {
+  //     localStorage.setItem("beyondpad-notes", JSON.stringify(savedNotes));
+  //   } catch (error) {
+  //     console.error("Failed to save notes to localStorage:", error);
+  //   }
+  // }, [savedNotes]);
 
   // Helper functions - replace the existing ones at the bottom of your component:
   const getPublicKeyFromAddress = async (address: string): Promise<string> => {
