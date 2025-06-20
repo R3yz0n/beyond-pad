@@ -35,9 +35,11 @@ Wallet Signature + Note CID → SHA256 → User-Specific Key
 
 - **End-to-End Encryption**: Military-grade AES-256 encryption
 - **Gasless Transactions**: Sponsored by Gelato relay network
+- **Transaction Hash Recovery**: Automatic retrieval from blockchain events
 - **Collaborative Editing**: Secure key sharing with collaborators (Not implemented)
 - **IPFS Storage**: Decentralized content storage
 - **Safe Wallets**: Account abstraction for enhanced security
+- **Auto-Clear on Disconnect**: Notes cleared when wallet disconnects for security
 
 ## 🛠️ Technology Stack
 
@@ -60,7 +62,6 @@ Wallet Signature + Note CID → SHA256 → User-Specific Key
 
 - **IPFS/Pinata**: Decentralized file storage
 - **CryptoJS**: Client-side encryption
-- **localStorage**: Local state persistence
 
 ## 📋 Prerequisites
 
@@ -167,6 +168,47 @@ const ipfsData = await fetchFromIPFS(cid);
 const noteContent = CryptoJS.AES.decrypt(ipfsData.encryptedContent, contentKey);
 ```
 
+## 🔐 Transaction Hash Management
+
+### Gelato Task IDs vs Base Sepolia Hashes
+
+The app handles two types of transaction identifiers:
+
+1. **Gelato Task IDs** (immediate):
+
+   - Format: `gelato-{taskId}`
+   - Available immediately after saving
+   - Links to Gelato task tracker
+   - Shows purple "Task Status" button
+
+2. **Base Sepolia Transaction Hashes** (after confirmation):
+   - Format: `0x{hash}`
+   - Retrieved from blockchain events after confirmation
+   - Links to Base Sepolia explorer
+   - Shows green "View TX" button
+
+### Auto-Recovery Process
+
+```javascript
+// 1. Save note → Get Gelato task ID
+const txResult = await relayTransaction(txData);
+const taskId = `gelato-${txResult.taskId}`;
+
+// 2. On page reload → Query blockchain events
+const events = await contract.queryFilter(contract.filters.NoteAdded(userAddress));
+const actualTxHash = events.find((e) => e.args.cid === noteCid)?.transactionHash;
+
+// 3. Update note with real transaction hash
+note.txHash = actualTxHash || taskId;
+```
+
+### Security Features
+
+- **Auto-clear on disconnect**: All notes cleared when wallet disconnects
+- **Wallet-specific encryption**: Each wallet sees only its own decryptable notes
+- **Event-based recovery**: Transaction hashes recovered from immutable blockchain events
+- **No persistent storage**: No sensitive data stored in localStorage
+
 ## 🤝 Collaboration Features
 
 ### Adding Collaborators
@@ -204,6 +246,47 @@ const result = await aaKit.relayTransaction(tx, {
 - 2^attempt seconds delay between retries
 - User-friendly error messages
 
+## 🔐 Transaction Hash Management
+
+### Gelato Task IDs vs Base Sepolia Hashes
+
+The app handles two types of transaction identifiers:
+
+1. **Gelato Task IDs** (immediate):
+
+   - Format: `gelato-{taskId}`
+   - Available immediately after saving
+   - Links to Gelato task tracker
+   - Shows purple "Task Status" button
+
+2. **Base Sepolia Transaction Hashes** (after confirmation):
+   - Format: `0x{hash}`
+   - Retrieved from blockchain events after confirmation
+   - Links to Base Sepolia explorer
+   - Shows green "View TX" button
+
+### Auto-Recovery Process
+
+```javascript
+// 1. Save note → Get Gelato task ID
+const txResult = await relayTransaction(txData);
+const taskId = `gelato-${txResult.taskId}`;
+
+// 2. On page reload → Query blockchain events
+const events = await contract.queryFilter(contract.filters.NoteAdded(userAddress));
+const actualTxHash = events.find((e) => e.args.cid === noteCid)?.transactionHash;
+
+// 3. Update note with real transaction hash
+note.txHash = actualTxHash || taskId;
+```
+
+### Security Features
+
+- **Auto-clear on disconnect**: All notes cleared when wallet disconnects
+- **Wallet-specific encryption**: Each wallet sees only its own decryptable notes
+- **Event-based recovery**: Transaction hashes recovered from immutable blockchain events
+- **No persistent storage**: No sensitive data stored in localStorage
+
 ## 📱 User Interface
 
 ### Main Components
@@ -218,7 +301,10 @@ const result = await aaKit.relayTransaction(tx, {
 - Real-time markdown preview
 - Copy CID to clipboard
 - View encrypted content on IPFS
-- Track transaction status on Gelato/Basescan
+- Track transaction status on Gelato/Base Sepolia
+- Automatic transaction hash recovery from blockchain events
+- Secure wallet disconnect (clears all notes for privacy)
+- Direct links to Base Sepolia explorer for confirmed transactions
 
 ## 🔍 Debugging
 
@@ -228,6 +314,8 @@ const result = await aaKit.relayTransaction(tx, {
 2. **Decryption failed**: Verify wallet can sign messages
 3. **Transaction failed**: Check Gelato API key and rate limits
 4. **IPFS timeout**: Try refreshing or check Pinata status
+5. **Missing transaction hashes**: Reload page to retrieve from blockchain events
+6. **Notes disappeared**: Check if wallet is still connected (notes auto-clear on disconnect)
 
 ### Debug Commands
 
@@ -235,11 +323,14 @@ const result = await aaKit.relayTransaction(tx, {
 // Check Safe deployment
 await refreshDeploymentStatus();
 
-// View transaction on explorer
+// View transaction on Base Sepolia explorer
 https://sepolia.basescan.org/tx/{txHash}
 
 // Check Gelato task status
 https://relay.gelato.digital/tasks/status/{taskId}
+
+// Force reload notes from blockchain
+loadNotesFromBlockchain();
 ```
 
 ## 🚦 Network Configuration

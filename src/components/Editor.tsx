@@ -45,6 +45,10 @@ interface EditorProps {
   getUserNotes?: (
     userAddress: string
   ) => Promise<{ cids: string[]; nftAddrs: string[]; encKeys: string[] }>;
+  getTransactionHashesFromEvents?: (
+    userAddress: string,
+    cids: string[]
+  ) => Promise<Record<string, string>>; // Add this
 }
 
 /**
@@ -69,6 +73,7 @@ const Editor: React.FC<EditorProps> = ({
   safeAddress,
   web3Provider,
   getUserNotes,
+  getTransactionHashesFromEvents, // Add this
 }) => {
   // ============================================
   // STATE MANAGEMENT
@@ -408,7 +413,7 @@ const Editor: React.FC<EditorProps> = ({
           console.error("Failed to add collaborator:", collaboratorError);
           toast.dismiss();
           toast.error(`Failed to add collaborator: ${collaboratorError.message}`);
-          toast.warning("Note was saved but collaborator addition failed");
+          toast.error("Note was saved but collaborator addition failed");
         }
       }
 
@@ -471,6 +476,9 @@ const Editor: React.FC<EditorProps> = ({
    * - Wallet signature required for each note decryption
    * - Invalid keys result in decryption failure (access denied)
    */
+  /**
+   * Enhanced function to load notes with transaction hashes from events
+   */
   const loadNotesFromBlockchain = useCallback(async () => {
     if (!ownerAddress || !safeAddress || !getUserNotes || !web3Provider) {
       if (!getUserNotes) {
@@ -506,6 +514,23 @@ const Editor: React.FC<EditorProps> = ({
         return;
       }
 
+      // ============================================
+      // NEW: RETRIEVE TRANSACTION HASHES FROM EVENTS
+      // ============================================
+
+      let cidToTxHash: Record<string, string> = {};
+
+      if (getTransactionHashesFromEvents) {
+        try {
+          toast.loading("Retrieving transaction hashes from blockchain events...");
+          cidToTxHash = await getTransactionHashesFromEvents(safeAddress, cids);
+          console.log("Retrieved transaction hashes:", cidToTxHash);
+        } catch (eventError: any) {
+          console.error("Failed to retrieve transaction hashes:", eventError);
+          toast.error("Failed to retrieve transaction hashes, but notes will still load");
+        }
+      }
+
       // Process each note
       const loadedNotes: SavedNote[] = [];
 
@@ -528,9 +553,10 @@ const Editor: React.FC<EditorProps> = ({
           const decryptedNote = decryptContent(ipfsData.encryptedContent, decryptedContentKey);
           const noteData = JSON.parse(decryptedNote);
 
-          // Check for existing transaction hash in local storage
+          // Get transaction hash from events or local storage
+          const txHashFromEvents = cidToTxHash[cid];
           const existingNote = savedNotes.find((note) => note.cid === cid);
-          const txHash = existingNote?.txHash;
+          const txHash = txHashFromEvents || existingNote?.txHash;
 
           // Create saved note object
           const savedNote: SavedNote = {
@@ -539,7 +565,7 @@ const Editor: React.FC<EditorProps> = ({
             timestamp: new Date(noteData.timestamp).getTime(),
             owner: ownerAddress.toLowerCase(),
             nftGate: nftAddr !== ethers.ZeroAddress ? nftAddr : undefined,
-            txHash: txHash,
+            txHash: txHash, // Now includes hashes from blockchain events!
             isShared: false, // TODO: Check collaborators
           };
 
@@ -558,10 +584,13 @@ const Editor: React.FC<EditorProps> = ({
         const existingCids = prev.map((note) => note.cid);
         const newNotes = loadedNotes.filter((note) => !existingCids.includes(note.cid));
 
-        // Merge transaction hashes from local state
+        // Merge transaction hashes (events take priority over local storage)
         const mergedNotes = loadedNotes.map((loadedNote) => {
           const existingNote = prev.find((note) => note.cid === loadedNote.cid);
-          return existingNote ? { ...loadedNote, txHash: existingNote.txHash } : loadedNote;
+          return {
+            ...loadedNote,
+            txHash: loadedNote.txHash || existingNote?.txHash, // Prefer event hash
+          };
         });
 
         const uniqueLoadedNotes = mergedNotes.filter((note) => !existingCids.includes(note.cid));
@@ -569,7 +598,13 @@ const Editor: React.FC<EditorProps> = ({
       });
 
       toast.dismiss();
-      toast.success(`Successfully loaded ${loadedNotes.length} notes from blockchain!`);
+
+      const notesWithHashes = loadedNotes.filter((note) => note.txHash).length;
+      toast.success(
+        `Successfully loaded ${loadedNotes.length} notes from blockchain! ` +
+          `(${notesWithHashes} with transaction hashes)`
+      );
+
       setLoadedFromChain(true);
     } catch (error: any) {
       console.error("Failed to load notes from blockchain:", error);
@@ -578,7 +613,15 @@ const Editor: React.FC<EditorProps> = ({
     } finally {
       setIsLoadingNotes(false);
     }
-  }, [ownerAddress, safeAddress, getUserNotes, web3Provider, loadedFromChain, savedNotes]);
+  }, [
+    ownerAddress,
+    safeAddress,
+    getUserNotes,
+    web3Provider,
+    loadedFromChain,
+    savedNotes,
+    getTransactionHashesFromEvents,
+  ]);
 
   // ============================================
   // LIFECYCLE EFFECTS
@@ -598,28 +641,15 @@ const Editor: React.FC<EditorProps> = ({
     }
   }, [isAuthenticated, ownerAddress, safeAddress, getUserNotes, loadedFromChain]);
 
-  // // Load notes from localStorage on mount
-  // React.useEffect(() => {
-  //   try {
-  //     const savedNotesFromStorage = localStorage.getItem("beyondpad-notes");
-  //     if (savedNotesFromStorage) {
-  //       const parsedNotes = JSON.parse(savedNotesFromStorage);
-  //       setSavedNotes(parsedNotes);
-  //       console.log("Loaded notes from localStorage:", parsedNotes.length);
-  //     }
-  //   } catch (error) {
-  //     console.error("Failed to load notes from localStorage:", error);
-  //   }
-  // }, []);
-
-  // // Save notes to localStorage whenever they change
-  // React.useEffect(() => {
-  //   try {
-  //     localStorage.setItem("beyondpad-notes", JSON.stringify(savedNotes));
-  //   } catch (error) {
-  //     console.error("Failed to save notes to localStorage:", error);
-  //   }
-  // }, [savedNotes]);
+  // Clear notes when wallet disconnects
+  React.useEffect(() => {
+    if (!isAuthenticated || !ownerAddress) {
+      console.log("Wallet disconnected - clearing notes for security");
+      setSavedNotes([]);
+      setLoadedFromChain(false);
+      setNote(""); // Also clear current note content
+    }
+  }, [isAuthenticated, ownerAddress]);
 
   // Helper functions - replace the existing ones at the bottom of your component:
   const getPublicKeyFromAddress = async (address: string): Promise<string> => {
@@ -881,9 +911,41 @@ const Editor: React.FC<EditorProps> = ({
                       </p>
                     )}
                     {savedNote.txHash && (
-                      <p className="text-sm text-green-600 mt-1 font-mono">
-                        ⛓️ On-chain: {savedNote.txHash}
-                      </p>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <p className="text-sm text-green-600 font-mono">
+                          ⛓️ On-chain: {savedNote.txHash}
+                          {savedNote.txHash.startsWith("gelato-") && (
+                            <span className="text-xs text-gray-500">
+                              {" "}
+                              (try reload to get the actual base hash)
+                            </span>
+                          )}
+                        </p>
+                        {savedNote.txHash.startsWith("gelato-") ? (
+                          <a
+                            href={`https://relay.gelato.digital/tasks/status/${savedNote.txHash.replace(
+                              "gelato-",
+                              ""
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-1 py-0.5 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded"
+                            title="View Gelato Task Status"
+                          >
+                            View
+                          </a>
+                        ) : (
+                          <a
+                            href={`https://sepolia.basescan.org/tx/${savedNote.txHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-1 py-0.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded"
+                            title="View on Base Sepolia Explorer"
+                          >
+                            View
+                          </a>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="flex space-x-2">
@@ -906,19 +968,33 @@ const Editor: React.FC<EditorProps> = ({
                     >
                       View
                     </a>
-                    {savedNote.txHash && savedNote.txHash.startsWith("gelato-") && (
-                      <a
-                        href={`https://relay.gelato.digital/tasks/${savedNote.txHash.replace(
-                          "gelato-",
-                          ""
-                        )}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2 py-1 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded"
-                        title="View Gelato Task Status"
-                      >
-                        Task Status
-                      </a>
+                    {savedNote.txHash && (
+                      <>
+                        {savedNote.txHash.startsWith("gelato-") ? (
+                          <a
+                            href={`https://relay.gelato.digital/tasks/status/${savedNote.txHash.replace(
+                              "gelato-",
+                              ""
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2 py-1 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded"
+                            title="View Gelato Task Status"
+                          >
+                            Task Status
+                          </a>
+                        ) : (
+                          <a
+                            href={`https://sepolia.basescan.org/tx/${savedNote.txHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded"
+                            title="View on Base Sepolia Explorer"
+                          >
+                            View TX
+                          </a>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

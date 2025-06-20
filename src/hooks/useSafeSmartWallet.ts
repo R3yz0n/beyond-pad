@@ -474,6 +474,115 @@ export function useSafeSmartWallet(txServiceUrl: string) {
   );
 
   // ============================================
+  // EVENT QUERIES FOR TRANSACTION HASHES
+  // ============================================
+
+  /**
+   * Retrieves transaction hashes for notes by querying blockchain events
+   *
+   * This function searches for NoteAdded events to find the original
+   * transaction hashes for notes owned by the user.
+   *
+   * @param userAddress - User's Safe address to query events for
+   * @param cids - Array of CIDs to find transaction hashes for
+   * @returns Promise<Record<string, string>> - Mapping of CID to transaction hash
+   */
+  const getTransactionHashesFromEvents = useCallback(
+    async (userAddress: string, cids: string[]): Promise<Record<string, string>> => {
+      if (!web3Provider) {
+        throw new Error("Web3 provider not initialized");
+      }
+
+      if (!process.env.NEXT_PUBLIC_NOTE_REGISTRY_ADDRESS) {
+        throw new Error("Note registry contract address not configured");
+      }
+
+      try {
+        // Create contract instance with full ABI
+        const contract = new ethers.Contract(
+          process.env.NEXT_PUBLIC_NOTE_REGISTRY_ADDRESS,
+          [
+            // NoteAdded event ABI
+            {
+              anonymous: false,
+              inputs: [
+                {
+                  indexed: true,
+                  internalType: "address",
+                  name: "user",
+                  type: "address",
+                },
+                {
+                  indexed: false,
+                  internalType: "string",
+                  name: "cid",
+                  type: "string",
+                },
+                {
+                  indexed: false,
+                  internalType: "address",
+                  name: "nftGate",
+                  type: "address",
+                },
+                {
+                  indexed: false,
+                  internalType: "string",
+                  name: "encKeyOwner",
+                  type: "string",
+                },
+              ],
+              name: "NoteAdded",
+              type: "event",
+            },
+          ],
+          web3Provider
+        );
+
+        console.log(`Querying events for user: ${userAddress}`);
+        console.log(`Looking for CIDs: ${cids.join(", ")}`);
+
+        // Query NoteAdded events for this user
+        const filter = contract.filters.NoteAdded(userAddress);
+
+        // Query events from the last 10,000 blocks (adjust as needed)
+        const currentBlock = await web3Provider.getBlockNumber();
+        const fromBlock = Math.max(0, currentBlock - 10000);
+
+        console.log(`Querying events from block ${fromBlock} to ${currentBlock}`);
+
+        const events = await contract.queryFilter(filter, fromBlock, "latest");
+
+        console.log(`Found ${events.length} NoteAdded events`);
+
+        // Create mapping of CID to transaction hash
+        const cidToTxHash: Record<string, string> = {};
+
+        for (const event of events) {
+          try {
+            // Extract CID from event args
+            const eventCid = event.args?.cid;
+            const txHash = event.transactionHash;
+
+            if (eventCid && txHash && cids.includes(eventCid)) {
+              cidToTxHash[eventCid] = txHash;
+              console.log(`Found transaction hash for CID ${eventCid}: ${txHash}`);
+            }
+          } catch (parseError) {
+            console.error("Failed to parse event:", parseError);
+          }
+        }
+
+        console.log(`Retrieved transaction hashes for ${Object.keys(cidToTxHash).length} notes`);
+        return cidToTxHash;
+      } catch (error: any) {
+        console.error("Failed to query events:", error);
+        throw new Error(`Failed to retrieve transaction hashes: ${error.message}`);
+      }
+    },
+    [web3Provider]
+  );
+
+  // ============================================
   // UTILITY FUNCTIONS
   // ============================================
 
@@ -524,5 +633,6 @@ export function useSafeSmartWallet(txServiceUrl: string) {
     refreshDeploymentStatus,
     disconnect,
     getUserNotes,
+    getTransactionHashesFromEvents, // Add this new function
   };
 }

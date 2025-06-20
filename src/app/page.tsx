@@ -24,7 +24,8 @@ function App() {
     isDeployed,
     refreshDeploymentStatus,
     disconnect,
-    getUserNotes, // Add this line
+    getUserNotes,
+    getTransactionHashesFromEvents, // Add this line
   } = useSafeSmartWallet(TX_SERVICE_URL);
 
   const [autoDeployAttempted, setAutoDeployAttempted] = useState<boolean>(false);
@@ -82,6 +83,7 @@ function App() {
         safeAddress={safeAddress}
         web3Provider={web3Provider}
         getUserNotes={getUserNotes}
+        getTransactionHashesFromEvents={getTransactionHashesFromEvents} // Add this line
       />
       <WalletConnectionModal isOpen={loading} />
       <DeployingWalletModal isOpen={deploySafeLoading} />
