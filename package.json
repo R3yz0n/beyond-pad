@@ -9,25 +9,32 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@safe-global/account-abstraction-kit-poc": "^3.0.1",
+    "@safe-global/protocol-kit": "^6.0.5",
+    "@safe-global/relay-kit": "^4.0.4",
+    "@safe-global/safe-core-sdk-types": "^5.1.0",
+    "@uiw/react-markdown-preview": "^5.1.4",
+    "@uiw/react-md-editor": "^4.0.7",
+    "axios": "^1.10.0",
+    "crypto-js": "^4.2.0",
+    "ethers": "^6.14.4",
+    "next": "15.3.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "next": "15.3.4"
+    "react-hot-toast": "^2.5.2",
+    "react-icons": "^5.5.0"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@mui/material": "^5.14.19",
+    "@stripe/crypto": "^0.0.4",
+    "@stripe/stripe-js": "^1.52.1",
+    "@tailwindcss/postcss": "^4",
+    "@types/crypto-js": "^4.2.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
+    "@web3auth/safeauth-embed": "^0.0.0",
     "tailwindcss": "^4",
-    "@safe-global/account-abstraction-kit-poc": "^3.0.0",
-    "@safe-global/auth-kit": "^3.0.0",
-    "@safe-global/onramp-kit": "^3.0.0",
-    "@safe-global/protocol-kit": "^3.0.0",
-    "@safe-global/relay-kit": "^3.0.0",
-    "@safe-global/safe-react-components": "^3.0.0",
-    "@stripe/crypto": "^0.0.4",
-    "@stripe/stripe-js": "^1.52.1",
-    "@web3auth/safeauth-embed": "^0.0.0"
+    "typescript": "^5"
   }
 }
