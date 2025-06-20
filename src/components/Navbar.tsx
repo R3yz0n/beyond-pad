@@ -24,7 +24,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     <div className="container mx-auto px-4 h-16 flex items-center justify-between">
       <div className="flex items-center space-x-4">
         <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
-          Beyond Pab
+          Beyond Pad
         </h1>
         <div className="hidden md:flex items-center space-x-6 text-sm text-gray-300 ml-8">
           <a href="#" className="hover:text-white transition-colors">
@@ -54,7 +54,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {loading ? (
                   <span>0x5307825c25CdB...a3029577A9</span>
                 ) : (
-                  <span>{formatWalletAddress(safeAddress || "", 15, 10)}</span>
+                  // <span>{formatWalletAddress(safeAddress || "", 15, 10)}</span>
+                  <span>{safeAddress || ""}</span>
                 )}
               </div>
             </div>

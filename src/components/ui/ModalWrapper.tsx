@@ -11,12 +11,12 @@ export const ModalWrapper = ({
   isOpen,
   onClose,
   children,
-  bgOpacity = "30", // Default opacity of 30%
+  bgOpacity = "50", // Default opacity of 30%
 }: ModalProps) => {
   if (!isOpen) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black/${bgOpacity} flex items-center justify-center z-50`}>
+    <div className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50`}>
       <div className="bg-white rounded-lg p-8 shadow-lg flex flex-col items-center">{children}</div>
       <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
     </div>

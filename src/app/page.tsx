@@ -12,6 +12,7 @@ function App() {
   const {
     isAuthenticated,
     ownerAddress,
+    web3Provider,
     safeAddress,
     login,
     relayTransaction,
@@ -23,6 +24,7 @@ function App() {
     isDeployed,
     refreshDeploymentStatus,
     disconnect,
+    getUserNotes, // Add this line
   } = useSafeSmartWallet(TX_SERVICE_URL);
 
   const [autoDeployAttempted, setAutoDeployAttempted] = useState<boolean>(false);
@@ -39,6 +41,7 @@ function App() {
         if (!isDeployedStatus) {
           console.log("Auto-deploying Safe wallet...");
           try {
+            debugger;
             await deploySafe();
           } catch (err) {
             console.error("Auto-deployment failed:", err);
@@ -76,9 +79,11 @@ function App() {
         isDeployed={isDeployed}
         relayTransaction={relayTransaction}
         ownerAddress={ownerAddress}
+        safeAddress={safeAddress}
+        web3Provider={web3Provider}
+        getUserNotes={getUserNotes}
       />
       <WalletConnectionModal isOpen={loading} />
-
       <DeployingWalletModal isOpen={deploySafeLoading} />
     </div>
   );
