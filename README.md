@@ -4,7 +4,7 @@ A decentralized, end-to-end encrypted note-taking application built on Base Sepo
 
 ## 🏆 The project requirements
 
-![Goal Overview](./public/images/goal-overview.png "Goal Overview")
+![Goal Overview](./public/images/task.png "Goal Overview")
 
 ## 🏗️ Architecture Overview
 
