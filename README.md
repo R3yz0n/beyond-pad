@@ -2,6 +2,10 @@
 
 A decentralized, end-to-end encrypted note-taking application built on Base Sepolia with Safe smart wallets and gasless transactions.
 
+## 🏆 The project requirements
+
+![Goal Overview](./public/images/goal-overview.png "Goal Overview")
+
 ## 🏗️ Architecture Overview
 
 ```
@@ -105,6 +109,7 @@ yarn dev
 ```
 
 ## 🔧 Smart Contract (Note Registry Contract Address 0x0ec7441eF05ABEaF4089f0b01982D7cfdFefEFbA)
+
 ## Reach here to view the solidity file
 
 https://github.com/R3yz0n/note-registry-contarct
